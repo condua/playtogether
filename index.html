@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web App Kéo Thả Lưới Tùy Chỉnh</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Hiệu ứng mượt mà */
+        .draggable-item {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Hiệu ứng khi đang được chọn ở kho (Click & Place mode) */
+        .selected-source {
+            ring-width: 4px;
+            --tw-ring-color: rgb(37 99 235); /* blue-600 */
+            transform: scale(1.05);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+        }
+
+        /* Hiệu ứng khi kéo item vào vùng hợp lệ */
+        .drag-over {
+            background-color: #dbeafe; /* blue-100 */
+            border-style: dashed;
+            border-color: #2563eb; /* blue-600 */
+            transform: scale(0.98);
+        }
+
+        /* Tùy chỉnh thanh cuộn cho đẹp hơn */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 6px; /* Giảm kích thước scrollbar trên mobile */
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Animation cho Modal */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .modal-animate-fade {
+            animation: fadeIn 0.2s ease-out forwards;
+        }
+        .modal-animate-scale {
+            animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans h-screen flex flex-col overflow-hidden">
+
+    <!-- Header & Controls -->
+    <header class="bg-white shadow-sm z-10 p-2 md:p-3 flex-shrink-0 border-b border-slate-200">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2 md:gap-3">
+            <div>
+                <h1 class="text-base md:text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-6 md:w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                    </svg>
+                    Grid Builder
+                </h1>
+            </div>
+
+            <div class="flex items-center gap-1.5 md:gap-2 bg-slate-50 p-1 md:p-1.5 border border-slate-200 rounded-lg">
+                <div class="flex items-center gap-1">
+                    <label class="text-xs md:text-sm font-medium text-slate-600">Hàng:</label>
+                    <input type="number" id="rows" value="2" min="1" max="8" class="w-8 md:w-12 p-1 text-center border rounded focus:outline-none focus:ring-2 focus:ring-blue-400 text-xs md:text-sm">
+                </div>
+                <div class="flex items-center gap-1">
+                    <label class="text-xs md:text-sm font-medium text-slate-600">Cột:</label>
+                    <input type="number" id="cols" value="4" min="1" max="8" class="w-8 md:w-12 p-1 text-center border rounded focus:outline-none focus:ring-2 focus:ring-blue-400 text-xs md:text-sm">
+                </div>
+                <div class="h-4 md:h-5 w-px bg-slate-300 mx-1"></div>
+                <button onclick="initGrid()" class="px-2 py-1 md:px-3 md:py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs md:text-sm font-medium rounded transition shadow-sm whitespace-nowrap">
+                    Tạo Lưới
+                </button>
+                <button onclick="resetApp()" class="px-1.5 py-1 md:px-2 md:py-1.5 text-slate-600 hover:bg-slate-200 hover:text-red-600 rounded transition" title="Làm mới">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 md:h-5 md:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Layout: 2 Frames (Source & Grid) -->
+    <!-- Chỉnh p-2 và gap-2 trên mobile để không bị tràn viền -->
+    <div class="flex-1 flex flex-col md:flex-row gap-2 md:gap-4 p-2 md:p-4 max-w-7xl mx-auto w-full overflow-hidden">
+        
+        <!-- FRAME 1: KHO ẢNH (Source Frame) -->
+        <!-- Chỉnh chiều cao mobile xuống h-[160px] cho gọn -->
+        <section class="flex-shrink-0 md:w-72 bg-white rounded-xl shadow-md border border-slate-200 flex flex-col h-[160px] md:h-auto overflow-hidden">
+            <div class="p-2 md:p-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <h2 class="font-bold text-slate-700 text-xs md:text-sm uppercase flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 md:h-5 md:w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Kho Ảnh
+                </h2>
+                <span id="source-count" class="bg-blue-100 text-blue-800 text-[10px] md:text-xs font-bold px-1.5 py-0.5 rounded-full">0</span>
+            </div>
+            
+            <!-- Vùng chứa ảnh (Scrollable) -->
+            <!-- Giảm padding p-2 -->
+            <div id="source-container" class="flex-1 overflow-auto p-2 md:p-3 flex flex-row md:flex-wrap gap-2 md:gap-3 content-start custom-scrollbar">
+                <!-- Images injected here -->
+            </div>
+            
+            <div class="p-1.5 bg-slate-50 border-t border-slate-200 text-center text-[10px] text-slate-500">
+                Kéo thả hoặc bấm chọn ảnh
+            </div>
+        </section>
+
+        <!-- FRAME 2: LƯỚI (Grid Frame) -->
+        <section class="flex-1 bg-white rounded-xl shadow-md border border-slate-200 flex flex-col overflow-hidden relative">
+            <div class="p-2 md:p-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <h2 class="font-bold text-slate-700 text-xs md:text-sm uppercase flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 md:h-5 md:w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                    </svg>
+                    Khu Vực Lưới
+                </h2>
+                <span class="text-[10px] md:text-xs text-slate-400">Kéo ảnh vào đây</span>
+            </div>
+
+            <!-- Vùng Grid (Scrollable) -->
+            <!-- Giảm padding p-2 -->
+            <div class="flex-1 overflow-auto p-2 md:p-4 flex items-center justify-center bg-slate-50/50 custom-scrollbar relative">
+                <div id="grid-container" class="grid gap-2 md:gap-3 bg-white p-2 md:p-3 rounded-lg shadow-sm border border-slate-300 transition-all duration-300 w-full max-w-4xl" style="min-height: 200px;">
+                    <!-- Grid cells injected here -->
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Image Selection Modal (Backup Feature) -->
+    <div id="image-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 sm:p-6">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity opacity-0" id="modal-overlay" onclick="closeModal()"></div>
+        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col transform scale-95 opacity-0 transition-all duration-300" id="modal-content">
+            <div class="p-4 border-b border-slate-100 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-slate-800">Chọn ảnh nhanh</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto grid grid-cols-3 sm:grid-cols-4 gap-3 md:gap-4 custom-scrollbar" id="modal-grid">
+                <!-- Modal Images -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-4 right-4 md:right-8 bg-slate-800 text-white px-4 py-3 rounded-lg shadow-xl transform translate-y-24 opacity-0 transition-all duration-300 pointer-events-none z-[60] text-sm md:text-base flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+        </svg>
+        <span id="toast-message">Thông báo</span>
+    </div>
+
+    <script>
+        // --- State Management ---
+        const state = {
+            images: [
+                'https://res.cloudinary.com/dy9yts4fa/image/upload/v1767035014/sao_czutcn.png',
+                'https://res.cloudinary.com/dy9yts4fa/image/upload/v1767035013/moneo_zs5kic.png',
+                'https://res.cloudinary.com/dy9yts4fa/image/upload/v1767035013/laitau_znq6b0.png',
+                'https://res.cloudinary.com/dy9yts4fa/image/upload/v1767034997/hinhthoi_lgjqco.png',
+                'https://res.cloudinary.com/dy9yts4fa/image/upload/v1767034994/caily_wuc8oy.png',
+                'https://res.cloudinary.com/dy9yts4fa/image/upload/v1767034995/tausao_zjcrmm.png',
+                'https://res.cloudinary.com/dy9yts4fa/image/upload/v1767034994/notnhat_biy9lw.png',
+                'https://res.cloudinary.com/dy9yts4fa/image/upload/v1767034994/tau_lwzi3h.png',
+                'https://res.cloudinary.com/dy9yts4fa/image/upload/v1767034994/kinhlup_xoja7u.png'
+            ],
+            targetCellIndex: null, 
+            selectedSourceId: null 
+        };
+
+        const sourceContainer = document.getElementById('source-container');
+        const gridContainer = document.getElementById('grid-container');
+        const modal = document.getElementById('image-modal');
+        const modalContent = document.getElementById('modal-content');
+        const modalOverlay = document.getElementById('modal-overlay');
+        const modalGrid = document.getElementById('modal-grid');
+
+        // --- Initialization ---
+        window.onload = () => {
+            initSourceImages();
+            initGrid();
+        };
+
+        function resetApp() {
+            initSourceImages();
+            initGrid();
+            showToast("Đã làm mới ứng dụng");
+        }
+
+        // --- Core Functions ---
+
+        function initSourceImages() {
+            sourceContainer.innerHTML = '';
+            state.selectedSourceId = null;
+            
+            state.images.forEach((src, index) => {
+                const item = createDraggableItem(`source-img-${index}`, src);
+                sourceContainer.appendChild(item);
+            });
+            updateCount();
+        }
+
+        function initGrid() {
+            const rows = document.getElementById('rows').value;
+            const cols = document.getElementById('cols').value;
+            
+            if (rows < 1 || cols < 1) return;
+
+            // Giảm minmax từ 70px xuống 60px để vừa màn hình nhỏ hơn
+            gridContainer.style.gridTemplateColumns = `repeat(${cols}, minmax(60px, 1fr))`;
+            gridContainer.style.gridTemplateRows = `repeat(${rows}, minmax(60px, 1fr))`;
+            gridContainer.innerHTML = '';
+
+            const totalCells = rows * cols;
+            for (let i = 0; i < totalCells; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'grid-cell group bg-white border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center relative transition-all duration-200 aspect-square overflow-hidden hover:border-blue-400 hover:bg-blue-50 cursor-pointer';
+                cell.dataset.index = i;
+
+                // Placeholder icon
+                cell.innerHTML = `
+                    <div class="pointer-events-none text-slate-200 group-hover:text-blue-300 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:h-8 md:w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                    </div>
+                `;
+
+                // Drag Events
+                cell.addEventListener('dragover', handleDragOver);
+                cell.addEventListener('dragleave', handleDragLeave);
+                cell.addEventListener('drop', handleDrop);
+                
+                // Click Event
+                cell.addEventListener('click', (e) => handleCellClick(e, cell));
+
+                gridContainer.appendChild(cell);
+            }
+        }
+
+        // --- Component Creation ---
+
+        function createDraggableItem(id, src) {
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = 'draggable-item relative w-16 h-16 md:w-20 md:h-20 flex-shrink-0 cursor-grab active:cursor-grabbing rounded-lg overflow-hidden border border-slate-200 shadow-sm hover:shadow-md bg-white select-none ring-offset-2 hover:ring-2 hover:ring-blue-400';
+            div.draggable = true;
+            div.dataset.src = src;
+            div.title = "Kéo tôi thả vào lưới";
+            
+            const img = document.createElement('img');
+            img.src = src;
+            img.className = 'w-full h-full object-cover pointer-events-none';
+            div.appendChild(img);
+
+            div.addEventListener('dragstart', handleDragStart);
+            div.addEventListener('click', (e) => handleSourceItemClick(e, div));
+
+            return div;
+        }
+
+        function createRemoveButton(itemId) {
+            const btn = document.createElement('button');
+            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 md:h-4 md:w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>`;
+            btn.className = 'absolute top-1 right-1 bg-white text-red-500 hover:text-red-600 hover:bg-red-50 rounded-full p-0.5 md:p-1 shadow-md transition-all duration-200 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 z-10';
+            btn.title = "Xóa ảnh";
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeItemFromGrid(itemId);
+            });
+            return btn;
+        }
+
+        // --- Drag & Drop Logic ---
+
+        function handleDragStart(e) {
+            e.dataTransfer.setData("text/plain", e.target.id);
+            e.dataTransfer.setData("image-src", e.target.dataset.src);
+            e.dataTransfer.effectAllowed = "copy";
+            selectSourceItem(e.target);
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            const cell = e.target.closest('.grid-cell');
+            if (cell && !cell.classList.contains('has-image')) {
+                cell.classList.add('drag-over');
+                e.dataTransfer.dropEffect = "copy";
+            }
+        }
+
+        function handleDragLeave(e) {
+            const cell = e.target.closest('.grid-cell');
+            if (cell) {
+                cell.classList.remove('drag-over');
+            }
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const cell = e.target.closest('.grid-cell');
+            if (cell) {
+                cell.classList.remove('drag-over');
+                const src = e.dataTransfer.getData("image-src");
+                if (src) addImageToCell(cell, src);
+            }
+        }
+
+        // --- Interaction Logic ---
+
+        function handleSourceItemClick(e, itemDiv) {
+            if (state.selectedSourceId === itemDiv.id) {
+                deselectAll();
+            } else {
+                selectSourceItem(itemDiv);
+            }
+        }
+
+        function handleCellClick(e, cell) {
+            if (cell.classList.contains('has-image')) return; 
+
+            // Nếu đang chọn ảnh ở kho -> Chèn ảnh đó
+            if (state.selectedSourceId) {
+                const sourceItem = document.getElementById(state.selectedSourceId);
+                if (sourceItem) {
+                    addImageToCell(cell, sourceItem.dataset.src);
+                    deselectAll(); 
+                }
+            } 
+            // Nếu không -> Mở Modal
+            else {
+                state.targetCellIndex = cell.dataset.index;
+                openModal();
+            }
+        }
+
+        function selectSourceItem(itemDiv) {
+            deselectAll();
+            state.selectedSourceId = itemDiv.id;
+            itemDiv.classList.add('selected-source');
+        }
+
+        function deselectAll() {
+            state.selectedSourceId = null;
+            document.querySelectorAll('.draggable-item').forEach(el => {
+                el.classList.remove('selected-source');
+            });
+        }
+
+        // --- Modal Logic ---
+
+        function openModal() {
+            modal.classList.remove('hidden');
+            modalGrid.innerHTML = '';
+            state.images.forEach((src) => {
+                const div = document.createElement('div');
+                div.className = 'cursor-pointer rounded-lg overflow-hidden aspect-square border-2 border-transparent hover:border-blue-500 hover:scale-105 transition-all relative group shadow-sm';
+                div.innerHTML = `<img src="${src}" class="w-full h-full object-cover">`;
+                
+                const overlay = document.createElement('div');
+                overlay.className = 'absolute inset-0 bg-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center';
+                overlay.innerHTML = `<div class="bg-blue-600 text-white rounded-full p-1"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg></div>`;
+                div.appendChild(overlay);
+
+                div.onclick = () => selectImageFromModal(src);
+                modalGrid.appendChild(div);
+            });
+            modalOverlay.classList.add('modal-animate-fade');
+            modalContent.classList.add('modal-animate-scale');
+        }
+
+        function closeModal() {
+            modal.classList.add('hidden');
+            modalOverlay.classList.remove('modal-animate-fade');
+            modalContent.classList.remove('modal-animate-scale');
+            state.targetCellIndex = null;
+        }
+
+        function selectImageFromModal(src) {
+            if (state.targetCellIndex !== null) {
+                const cell = gridContainer.querySelector(`.grid-cell[data-index="${state.targetCellIndex}"]`);
+                if (cell) addImageToCell(cell, src);
+            }
+            closeModal();
+        }
+
+        // --- Add/Remove Logic ---
+
+        function addImageToCell(cell, src) {
+            if (cell.classList.contains('has-image')) {
+                showToast("Ô này đã có ảnh!");
+                return;
+            }
+
+            cell.innerHTML = '';
+            cell.classList.add('has-image', 'bg-white');
+            cell.classList.remove('border-dashed', 'hover:bg-blue-50');
+
+            const newId = `grid-item-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+            const wrapper = document.createElement('div');
+            wrapper.id = newId;
+            wrapper.className = 'w-full h-full relative group animate-[fadeIn_0.3s_ease-out]';
+            
+            const img = document.createElement('img');
+            img.src = src;
+            img.className = 'w-full h-full object-cover rounded-md';
+            wrapper.appendChild(img);
+            wrapper.appendChild(createRemoveButton(newId));
+
+            cell.appendChild(wrapper);
+        }
+
+        function removeItemFromGrid(itemId) {
+            const item = document.getElementById(itemId);
+            if (item) {
+                const cell = item.parentElement;
+                item.remove();
+                cell.classList.remove('has-image', 'bg-white');
+                cell.classList.add('border-dashed', 'hover:bg-blue-50');
+                cell.innerHTML = `
+                    <div class="pointer-events-none text-slate-200 group-hover:text-blue-300 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 md:h-8 md:w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                    </div>
+                `;
+            }
+        }
+
+        function updateCount() {
+            const count = sourceContainer.children.length;
+            const counter = document.getElementById('source-count');
+            if(counter) counter.innerText = count;
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = msg;
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            setTimeout(() => toast.classList.add('translate-y-24', 'opacity-0'), 2000);
+        }
+    </script>
+</body>
+</html>
